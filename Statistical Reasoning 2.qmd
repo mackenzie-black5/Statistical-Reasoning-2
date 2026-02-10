@@ -1,0 +1,258 @@
+---
+title: "Statistical Reasoning 2"
+author: "Mackenzie and Abbie"
+format: pdf
+editor: visual
+---
+
+# 1. Multiple Regression
+ model equation y = intercept+slope 1 x variable1 + slop2 x variable2
+ 
+## 1.1 Refresh on coefficients
+univariate linear regression
+
+
+```{r}
+library(tidyverse)
+
+library(brms) # for statistics
+library(tidyverse) # for data wrangling
+library(ggeffects) # for  prediction plots
+library(palmerpenguins) # data we'll be using
+```
+
+```{r}
+penguins <- palmerpenguins::penguins
+
+#plotting linear regression
+penguins %>% 
+  ggplot(aes(x = body_mass_g,
+             y = flipper_length_mm)) +
+  geom_point() +
+  # Add a geom_smooth with an "lm" line for visualization
+  geom_smooth(method = "lm")
+```
+
+```{r}
+#running the model
+
+
+
+# flipper length by body mass model
+m.flip.mass <- 
+  brm(data = penguins, # Give the model the penguins data
+      # Choose a gaussian (normal) distribution
+      family = gaussian,
+      # Specify the model here. 
+      flipper_length_mm ~ 1 + body_mass_g,
+      # Here's where you specify parameters for executing the Markov chains
+      # We're using similar to the defaults, except we set cores to 4 so the analysis runs faster than the default of 1
+      iter = 2000, warmup = 1000, chains = 4, cores = 4,
+      # Setting the "seed" determines which random numbers will get sampled.
+      # In this case, it makes the randomness of the Markov chain runs reproducible 
+      # (so that both of us get the exact same results when running the model)
+      seed = 4,
+      # Save the fitted model object as output - helpful for reloading in the output later
+      file = "output/m.flip.mass")
+```
+```{r}
+#summary of model
+
+summary(m.flip.mass)
+```
+```{r}
+plot(m.flip.mass)
+```
+
+1. clean peak for each distribution
+2. chains are overlapping
+3. chains are flat
+
+```{r}
+summary(m.flip.mass)
+```
+## Q1.1 Body mass on flipper length
+
+1. With every gram increase in body mass, there is a 0.02 mm increase in flipper length
+
+2. Point 1: (3000,182); point 2: (3500,190) slope estimate = 0.016. The model slope is very close to the slope calculated from the ggplot
+
+## Q1.2 Effect 
+Yes, we can claim a difference from zero because the CI intervals do not include zero as a possible value
+
+## Q1.3 prob diff from zero
+fraction of posterior greater than zero
+```{r}
+as_draws_df(m.flip.mass) |> # extract the posterior samples from the model estimate
+  select(b_body_mass_g) |> # pull out the latitude samples from all 4 chains. we'll get a warning that we can ignore.
+  summarize(p_slope_greaterthan_zero = sum(b_body_mass_g > 0)/length(b_body_mass_g))
+```
+This means that there is a high probability of being different from zero. The probability is 1
+
+# 1.2 Additive Models
+bill length on bill depth
+
+plotting first
+```{r}
+penguins %>% 
+  ggplot(aes(x = bill_length_mm,
+             y = bill_depth_mm)) +
+  geom_point() +
+  # Let's add in a basic lm just to visualize
+  geom_smooth(method = "lm")
+```
+## Q1.4 
+There seems to be a slight negative association but the data is very scattered and the CI is somewhat wide
+
+normal univariate model
+```{r}
+# flipper length by body mass model
+m.depth.length <- 
+  brm(data = penguins, # Give the model the penguins data
+      # Choose a gaussian (normal) distribution
+      family = gaussian,
+      # Specify the model here. 
+      bill_depth_mm ~ 1 + bill_length_mm,
+      # Here's where you specify parameters for executing the Markov chains
+      # We're using similar to the defaults, except we set cores to 4 so the analysis runs faster than the default of 1
+      iter = 2000, warmup = 1000, chains = 4, cores = 4,
+      # Setting the "seed" determines which random numbers will get sampled.
+      # In this case, it makes the randomness of the Markov chain runs reproducible 
+      # (so that both of us get the exact same results when running the model)
+      seed = 4,
+      # Save the fitted model object as output - helpful for reloading in the output later
+      file = "output/m.depth.length")
+```
+```{r}
+summary(m.depth.length)
+```
+```{r}
+plot(m.depth.length)
+```
+
+## Q1.5 
+After running a univariate model, we found a negative association between bill depth and bill length with a slope of -0.09. The 95% compatibility interval does not include zero showing that there is evidence for the association. The model ran well with an Rhat of 1, overlapping chains, and smooth posterior distributions.
+
+same model with species as second predictor of bill depth
+```{r}
+# flipper length by body mass model
+m.depth.length.species <- 
+  brm(data = penguins, # Give the model the penguins data
+      # Choose a gaussian (normal) distribution
+      family = gaussian,
+      # Specify the model here. 
+      bill_depth_mm ~ 0 + bill_length_mm + species,
+      # Here's where you specify parameters for executing the Markov chains
+      # We're using similar to the defaults, except we set cores to 4 so the analysis runs faster than the default of 1
+      iter = 2000, warmup = 1000, chains = 4, cores = 4,
+      # Setting the "seed" determines which random numbers will get sampled.
+      # In this case, it makes the randomness of the Markov chain runs reproducible 
+      # (so that both of us get the exact same results when running the model)
+      seed = 4,
+      # Save the fitted model object as output - helpful for reloading in the output later
+      file = "output/m.depth.length.species")
+```
+
+assessing the model
+```{r}
+summary(m.depth.length.species)
+```
+```{r}
+plot(m.depth.length.species)
+```
+three separate intercepts for each species - can then compare the relationship between bill length and depth for each species
+
+graph the data again but separating by species
+```{r}
+penguins %>% 
+  ggplot(aes(x = bill_length_mm,
+             y = bill_depth_mm,
+             color = species)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+## Q1.7 
+At 45mm, Gentoo has a bill depth of around 14.5mm, Chinstrap is around 17.5mm, and Adelie is around 19mm. Adelie - chinstrap: (19mm - 17.5mm) = 1.5mm. This is around the model estimate of 1.91mm. Adelie - Gentoo: (19mm - 14.5) = 4.5mm. This is around the model estimate of 5.09mm.
+
+additive model - one predictor treated as independent of other predictors
+
+## Q1.8 
+The results from the univariate regression of bill depth ~ bill length indicate that the effect of bill length on bill depth was a change of _-0.09___mm of bill depth for every 1mm of bill length. When we add in species, the results from the multivariate regression of bill depth ~ bill length + species indicate that the effect of bill length on bill depth was a change of _0.20___mm of bill depth for every 1mm of bill length. (Remember to add in a few extra sentences here) The second model indicated that there was a positive correlation between bill length and bill depth and that this effect was influenced by species. Without including species, it is impossible to determine the true effect of bill length on bill depth. 
+
+
+```{r}
+#plotting predictions of model
+
+# compatibility interval. the shows uncertainty in the average response.
+confm.depth.length.species <- predict_response(m.depth.length.species)
+
+plot(confm.depth.length.species, show_data = TRUE)
+```
+```{r}
+confm.depth.length.species
+```
+can adjust which value R chooses with the condition command
+
+this is not giving you a full description of the data because there are other variables involved
+
+prediction variable:
+```{r}
+# prediction interval. this shows uncertainty in the data around the average response.
+confm.depth.length.species <- predict_response(m.depth.length.species, interval = 'prediction')
+plot(confm.depth.length.species, show_data = TRUE)
+```
+
+
+# 2 Run Multiple regression on Iris Data 
+
+```{r}
+iris <- datasets::iris
+```
+
+## Q2.1 Make a Hypothesis
+We expect flower petal length to increase with sepal length by species. Larger flowers have larger petals, so a larger sepal would be needed to enclose and hold the weight of larger petals. Yes, species will be an important factor, and various species have different average sizes and proportions of sepal length to petal size. 
+
+
+## Q2.2 Graph Data
+```{r}
+iris %>% 
+  ggplot(aes(x = Sepal.Length,
+             y = Petal.Length,
+             color = Species)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+## Q2.3 Set up and run a model
+additive regression model with iris data
+
+```{r}
+m.petal.length.sp <- 
+  brm(data = iris, 
+      family = gaussian,
+      Petal.Length ~ 0 + Sepal.Length + Species,
+      iter = 2000, warmup = 1000, chains = 4, cores = 4,
+      seed = 4,
+      file = "output/m.petal.length.sp")
+```
+```{r}
+summary(m.petal.length.sp)
+```
+```{r}
+plot(m.petal.length.sp)
+```
+## Q2.4 Assess the model
+The model ran correctly. The Rhat is one, the chains overlap, and the posterior distributions are even. 
+
+## Q2.5 Interpret model
+1. With every centimeter in sepal length, there is a 0.63 centimeter increase in petal length. The effect is reasonably different from zero, as the 95% compatability interval does not include zero. This is an overall for the effects, and it does not separate by the species for these values. 
+
+2. The three estimates given by the summary are estimates for the intercept value of each individual species given the slope of the model. We can take the intercepts to look at the differences between the species. Setosa and veriscolor: (-1.7 - 0.51) = -2.21, and Setosa and virginica: (-1.7 - 1.39)= -3.09. Veriscolor has a compatabliity interval that includes zero. The test below show that there is a high probability that the slope does not include zero. 
+
+```{r}
+as_draws_df(m.petal.length.sp) |> # extract the posterior samples from the model estimate
+  select(b_Sepal.Length) |> # pull out the latitude samples from all 4 chains. we'll get a warning that we can ignore.
+  summarize(p_slope_greaterthan_zero = sum(b_Sepal.Length > 0)/length(b_Sepal.Length))
+```
+
+## Q2.6 Results paragraph
+After running a multiple regression model including species and sepal length on petal length, we determined that there is a positive correlation of 0.63 centimeter increase in petal length for every centimeter of sepal length. This varies by species of flower with Setosa and veriscolor having a difference of -2.21 and Setosa and virginica having a difference of -3.09.
